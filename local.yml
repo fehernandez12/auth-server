@@ -1,0 +1,43 @@
+version: "3"
+
+volumes:
+  local_postgres_data: {}
+  local_postgres_data_backups: {}
+
+services:
+  auth-server: &auth-server
+    build:
+      context: .
+      dockerfile: ./compose/local/auth-server/Dockerfile
+      target: dev
+    image: auth-server_local
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+      - "40000:40000"
+    security_opt:
+      - "seccomp:unconfined"
+    cap_add:
+      - SYS_PTRACE
+    volumes:
+      - .:/usr/src/auth-server
+    env_file:
+      - ./.envs/.local/.auth-server
+      - ./.envs/.local/.postgres
+  postgres:
+    build:
+      context: .
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: local_postgres
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+      - local_postgres_data_backups:/backups
+      - ./compose/production/postgres/docker-entrypoint-initdb:/docker-entrypoint-initdb.d
+    env_file:
+      - ./.envs/.local/.postgres
+
+  redis:
+    image: redis:5.0.5-alpine
+    ports:
+      - "6379:6379"
