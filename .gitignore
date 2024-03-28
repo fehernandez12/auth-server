@@ -19,7 +19,6 @@
 
 # Go workspace file
 go.work
-.envs/.local/*
-.envs/
+.envs/.production/*
 server/private-key.pem
 temp/
