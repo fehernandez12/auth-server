@@ -21,4 +21,5 @@
 go.work
 .envs/.production/*
 server/private-key.pem
-temp/
+tmp/
+tmp/*

@@ -1,5 +1,20 @@
 package models
 
+type SignupRequest struct {
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type RoleRequest struct {
+	Name string `json:"name"`
+}
+
+type RoleDto struct {
+	Name        string   `json:"name"`
+	Permissions []string `json:"permissions"`
+}
+
 type TokenRequest struct {
 	GrantType string `json:"grant_type"`
 	ClientId  string `json:"client_id"`

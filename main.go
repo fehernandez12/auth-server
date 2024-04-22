@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/urfave/cli/v2"
 )
@@ -34,18 +32,7 @@ func authServerCmd() *cli.Command {
 		Name:  "start",
 		Usage: "Starts the auth server",
 		Action: func(c *cli.Context) error {
-			done := make(chan os.Signal, 1)
-			signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-			stopper := make(chan struct{})
-			go func() {
-				<-done
-				close(stopper)
-			}()
-			server, err := server.NewServer()
-			if err != nil {
-				return err
-			}
-			return server.Start(stopper)
+			return server.StartServer()
 		},
 	}
 }

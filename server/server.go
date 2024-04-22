@@ -1,28 +1,29 @@
 package server
 
 import (
+	"auth-server/logger"
 	"auth-server/models"
 	"auth-server/repository"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
-	"strings"
+	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+// Server constants
 const (
-	TOKEN_ROUTE        = "/token"
-	ADMIN_CLIENT_ROUTE = "/admin/client"
+	CONTENT_TYPE     = "Content-Type"
+	X_REQUESTED_WITH = "X-Requested-With"
+	AUTHORIZATION    = "Authorization"
 )
 
 type ServerConfig struct {
@@ -35,14 +36,32 @@ type Server struct {
 	DB                    *gorm.DB
 	clientRepository      repository.Repository[models.Client]
 	applicationRepository repository.Repository[models.Application]
-	logger                *Logger
+	userRepository        repository.Repository[models.User]
+	roleRepository        repository.Repository[models.Role]
+	permissionRepository  repository.Repository[models.Permission]
+	logger                *logger.Logger
 }
 
-func NewServer() (*Server, error) {
-	s := &Server{
-		logger: NewLogger(),
+func StartServer() error {
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	stopper := make(chan struct{})
+	go func() {
+		<-done
+		close(stopper)
+	}()
+	server, err := newServer()
+	if err != nil {
+		return err
 	}
-	banner, err := os.ReadFile("server/banner.txt")
+	return server.start(stopper)
+}
+
+func newServer() (*Server, error) {
+	s := &Server{
+		logger: logger.NewLogger(),
+	}
+	banner, err := os.ReadFile("resources/banner.txt")
 	if err != nil {
 		s.logger.Fatal(err)
 	}
@@ -67,19 +86,28 @@ func NewServer() (*Server, error) {
 		s.logger.Fatal(err)
 	}
 	s.logger.WithField("Status", "Migrating database...")
-	err = db.AutoMigrate(&models.Client{}, &models.Application{})
+	err = db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{})
 	if err != nil {
 		s.logger.Fatal(err)
 	}
 	s.DB = db
 	s.clientRepository = repository.NewClientRepository(db)
 	s.applicationRepository = repository.NewApplicationRepository(db)
+	s.userRepository = repository.NewUserRepository(db)
+	s.roleRepository = repository.NewRoleRepository(db)
+	s.permissionRepository = repository.NewPermissionRepository(db)
 	s.logger.WithField("Status", "Application is running")
 	return s, nil
 }
 
-func (s *Server) Start(stop <-chan struct{}) error {
-	corsObj := handlers.CORS(handlers.AllowedOrigins([]string{"*"}), handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}), handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}))
+func (s *Server) start(stop <-chan struct{}) error {
+	corsObj := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{
+			X_REQUESTED_WITH, CONTENT_TYPE, AUTHORIZATION,
+		}),
+	)
 	srv := &http.Server{
 		Addr:    s.config.Addr,
 		Handler: corsObj(s.router()),
@@ -97,25 +125,6 @@ func (s *Server) Start(stop <-chan struct{}) error {
 	return srv.Shutdown(ctx)
 }
 
-func (s *Server) router() http.Handler {
-	router := mux.NewRouter()
-	router.Use(s.logger.RequestLoggerMiddleware)
-	router.HandleFunc("/health", s.healthHandler).Methods("GET")
-	router.HandleFunc(TOKEN_ROUTE, s.HandleToken).Methods("POST")
-	router.HandleFunc("/introspect", s.HandleIntrospection).Methods("POST")
-	router.HandleFunc("/tokeninfo", s.HandleTokenInfo).Methods("GET")
-	// Admin-only routes. They require s.AuthMiddleware.
-	authRouter := router.PathPrefix("/admin").Subrouter()
-	authRouter.Use(s.AuthMiddleware)
-	authRouter.HandleFunc("/client", s.HandleClient).Methods("POST")
-	return router
-}
-
-func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
-
 func (s *Server) readServerConfig() (*ServerConfig, error) {
 	addr := os.Getenv("AUTH_SERVER_ADDR")
 	if addr == "" {
@@ -129,165 +138,4 @@ func (s *Server) readServerConfig() (*ServerConfig, error) {
 		Addr:    addr,
 		Timeout: int(timeout),
 	}, nil
-}
-
-func (s *Server) HandleToken(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	decoder := json.NewDecoder(r.Body)
-	var tokenRequest models.TokenRequest
-	err := decoder.Decode(&tokenRequest)
-	if err != nil {
-		s.HandleError(w, http.StatusBadRequest, TOKEN_ROUTE, err)
-	}
-	if tokenRequest.GrantType == "client_credentials" {
-		ctx := context.Background()
-		clientData, appData, err := s.FetchClientAndApplication(ctx, tokenRequest.ClientId, tokenRequest.Aud)
-		if err != nil {
-			s.HandleError(w, http.StatusInternalServerError, TOKEN_ROUTE, err)
-			return
-		}
-		s.logger.WithField("clientData", clientData)
-		s.logger.WithField("appData", appData)
-
-		if !clientData.HasAllowedScopes(tokenRequest.Scope, appData.AppName) {
-			s.HandleError(w, http.StatusUnauthorized, TOKEN_ROUTE, errors.New("client does not have the requested scopes"))
-			return
-		}
-
-		payload := models.NewPayload(clientData.ID.String(), appData.ID.String(), 1, tokenRequest.Scope)
-		jwt, err := models.NewJwt(payload, "JWT")
-		if err != nil {
-			s.HandleError(w, http.StatusInternalServerError, TOKEN_ROUTE, err)
-			return
-		}
-		var tokenResponse models.TokenResponse
-		jwtToken, err := jwt.Token()
-		if err != nil {
-			s.HandleError(w, http.StatusInternalServerError, TOKEN_ROUTE, err)
-			return
-		}
-		tokenResponse.AccessToken = jwtToken
-		tokenResponse.TokenType = "Bearer"
-		response, err := json.Marshal(tokenResponse)
-		if err != nil {
-			s.HandleError(w, http.StatusInternalServerError, TOKEN_ROUTE, err)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write(response)
-		s.logger.Info(http.StatusOK, TOKEN_ROUTE, start)
-	}
-}
-
-func (s *Server) FetchClientAndApplication(ctx context.Context, clientId string, applicationId string) (*models.Client, *models.Application, error) {
-	client, err := s.clientRepository.FindById(ctx, clientId)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	application, err := s.applicationRepository.FindById(ctx, applicationId)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return client, application, nil
-}
-
-func (s *Server) HandleIntrospection(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-func (s *Server) HandleTokenInfo(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-func (s *Server) HandleClient(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	var clientRequest models.ClientRequest
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&clientRequest)
-	if err != nil {
-		s.HandleError(w, http.StatusBadRequest, ADMIN_CLIENT_ROUTE, err)
-		return
-	}
-	client := &models.Client{
-		ID:            uuid.New(),
-		ClientName:    clientRequest.ClientName,
-		Email:         clientRequest.Email,
-		AllowedScopes: strings.Split(clientRequest.Scopes, " "),
-	}
-	result, err := s.clientRepository.Save(context.Background(), client)
-	if err != nil {
-		s.HandleError(w, http.StatusConflict, ADMIN_CLIENT_ROUTE, err)
-		return
-	}
-	applications, err := s.applicationRepository.FindAll(context.Background())
-	if err != nil {
-		s.HandleError(w, http.StatusInternalServerError, ADMIN_CLIENT_ROUTE, err)
-		return
-	}
-	appNames := make([]string, len(applications))
-	for i, app := range applications {
-		appNames[i] = app.AppName
-	}
-	err = client.CheckApps(appNames)
-	if err != nil {
-		s.HandleError(w, http.StatusBadRequest, ADMIN_CLIENT_ROUTE, err)
-		return
-	}
-	response, err := json.Marshal(result)
-	if err != nil {
-		s.HandleError(w, http.StatusInternalServerError, ADMIN_CLIENT_ROUTE, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(response)
-	s.logger.Info(http.StatusCreated, ADMIN_CLIENT_ROUTE, start)
-}
-
-func (s *Server) HandleError(w http.ResponseWriter, statusCode int, route string, cause error) {
-	var errorResponse models.ErrorResponse
-	errorResponse.Messages = append(errorResponse.Messages, cause.Error())
-	response, err := json.Marshal(errorResponse)
-	if err != nil {
-		s.HandleError(w, http.StatusInternalServerError, route, err)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	w.Write(response)
-	s.logger.Error(statusCode, route, cause)
-}
-
-func (s *Server) ValidateToken(token string) (*models.Payload, error) {
-	parts := models.SplitToken(token)
-	header, err := models.ParseHeader(parts[0])
-	if err != nil {
-		return nil, err
-	}
-	s.logger.WithField("header", header)
-	if header.Alg != os.Getenv("AUTH_SERVER_JWT_ALG") {
-		return nil, errors.New("invalid algorithm")
-	}
-	payload, err := models.ParsePayload(parts[1])
-	if err != nil {
-		return nil, err
-	}
-	s.logger.WithField("payload", payload)
-	if payload.Exp < time.Now().Unix() {
-		return nil, errors.New("token expired")
-	}
-	jwt, err := models.NewJwt(payload, "JWT")
-	if err != nil {
-		return nil, err
-	}
-	valid, err := jwt.CheckSignature(parts[2])
-	if err != nil {
-		return nil, err
-	}
-	if !valid {
-		return nil, errors.New("invalid signature")
-	}
-	return payload, nil
 }
