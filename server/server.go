@@ -86,7 +86,13 @@ func newServer() (*Server, error) {
 		s.logger.Fatal(err)
 	}
 	s.logger.WithField("Status", "Migrating database...")
-	err = db.AutoMigrate(&models.User{}, &models.Role{}, &models.Permission{})
+	err = db.AutoMigrate(
+		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.Application{},
+		&models.Client{},
+	)
 	if err != nil {
 		s.logger.Fatal(err)
 	}
