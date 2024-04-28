@@ -43,13 +43,14 @@ type TokenInfoResponse struct {
 	Active bool `json:"active"`
 }
 
-type ClientRequest struct {
-	ClientName    string `json:"client_name"`
-	ApplicationId string `json:"application_id"`
-	Email         string `json:"email"`
-	Scopes        string `json:"scopes"`
-}
-
 type ErrorResponse struct {
 	Messages []string `json:"message"`
+}
+
+type ClientRequest struct {
+	ClientName string `json:"name"`
+}
+
+type ApplicationRequest struct {
+	AppName string `json:"name"`
 }

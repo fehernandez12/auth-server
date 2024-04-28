@@ -28,10 +28,10 @@ func (s *Server) HandleToken(w http.ResponseWriter, r *http.Request) {
 		s.logger.WithField("clientData", clientData)
 		s.logger.WithField("appData", appData)
 
-		if !clientData.HasAllowedScopes(tokenRequest.Scope, appData.AppName) {
-			s.HandleError(w, http.StatusUnauthorized, TOKEN_ROUTE, errors.New("client does not have the requested scopes"))
-			return
-		}
+		// if !clientData.HasAllowedScopes(tokenRequest.Scope, appData.AppName) {
+		// 	s.HandleError(w, http.StatusUnauthorized, TOKEN_ROUTE, errors.New("client does not have the requested scopes"))
+		// 	return
+		// }
 
 		payload := models.NewPayload(clientData.ID.String(), appData.ID.String(), 1, tokenRequest.Scope)
 		jwt, err := models.NewJwt(payload, "JWT")
@@ -112,3 +112,4 @@ func (s *Server) ValidateToken(token string) (*models.Payload, error) {
 	}
 	return payload, nil
 }
+
