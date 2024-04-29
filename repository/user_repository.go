@@ -30,8 +30,11 @@ func (p *UserRepository) FindAll(ctx context.Context) ([]*models.User, error) {
 func (p *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	err := p.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
+	}
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
 	return &user, nil
 }
@@ -39,8 +42,11 @@ func (p *UserRepository) FindByEmail(ctx context.Context, email string) (*models
 func (p *UserRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
 	var user models.User
 	err := p.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
+	}
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
 	return &user, nil
 }

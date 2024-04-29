@@ -2,6 +2,8 @@ package server
 
 import "net/http"
 
+// getStatusCode returns the appropriate successful status code
+// for the provided HTTP method.
 func (s *Server) getStatusCode(method string) int {
 	switch method {
 	case http.MethodGet:
