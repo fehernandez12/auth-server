@@ -41,8 +41,13 @@ func (s *Server) HandleUser(w http.ResponseWriter, r *http.Request) {
 			s.HandleError(w, http.StatusBadRequest, ADMIN_REGISTER_ROUTE, err)
 			return
 		}
-		user := models.NewUser(&signupRequest)
-		result, err := service.CreateUser(user)
+		password, err := s.hasher.GenerateFromPassword(signupRequest.Password)
+		if err != nil {
+			s.HandleError(w, http.StatusInternalServerError, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
+		signupRequest.Password = password
+		result, err := service.CreateUser(&signupRequest)
 		if err != nil {
 			s.HandleError(w, http.StatusConflict, ADMIN_REGISTER_ROUTE, err)
 			return

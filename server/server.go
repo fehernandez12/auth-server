@@ -1,6 +1,7 @@
 package server
 
 import (
+	"auth-server/hasher"
 	"auth-server/logger"
 	"auth-server/models"
 	"auth-server/repository"
@@ -22,6 +23,7 @@ import (
 type ServerConfig struct {
 	Timeout int
 	Addr    string
+	Secret  []byte
 }
 
 type Server struct {
@@ -33,6 +35,7 @@ type Server struct {
 	roleRepository        repository.Repository[models.Role]
 	permissionRepository  repository.Repository[models.Permission]
 	logger                *logger.Logger
+	hasher                hasher.Hasher
 }
 
 func StartServer() error {
@@ -95,6 +98,7 @@ func newServer() (*Server, error) {
 	s.userRepository = repository.NewUserRepository(db)
 	s.roleRepository = repository.NewRoleRepository(db)
 	s.permissionRepository = repository.NewPermissionRepository(db)
+	s.hasher = hasher.NewPBKDF2Hasher(200000, s.config.Secret)
 	s.logger.WithField("Status", "Application is running")
 	return s, nil
 }
@@ -136,5 +140,6 @@ func (s *Server) readServerConfig() (*ServerConfig, error) {
 	return &ServerConfig{
 		Addr:    addr,
 		Timeout: int(timeout),
+		Secret:  []byte(os.Getenv("AUTH_SERVER_SECRET")),
 	}, nil
 }

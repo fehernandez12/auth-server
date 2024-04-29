@@ -18,8 +18,8 @@ func NewUserService(repo *repository.UserRepository) *UserService {
 }
 
 // CreateUser creates a new user with the provided user details.
-func (s *UserService) CreateUser(user *models.User) (*models.UserDto, error) {
-	_user, err := s.repo.FindByEmail(context.Background(), user.Email)
+func (s *UserService) CreateUser(data *models.SignupRequest) (*models.UserDto, error) {
+	_user, err := s.repo.FindByEmail(context.Background(), data.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -27,13 +27,15 @@ func (s *UserService) CreateUser(user *models.User) (*models.UserDto, error) {
 		return nil, errors.New("user with email already exists")
 	}
 
-	_user, err = s.repo.FindByUsername(context.Background(), user.Username)
+	_user, err = s.repo.FindByUsername(context.Background(), data.Username)
 	if err != nil {
 		return nil, err
 	}
 	if _user != nil {
 		return nil, errors.New("user with username already exists")
 	}
+
+	user := models.NewUser(data)
 
 	result, err := s.repo.Save(context.Background(), user)
 	if err != nil {
