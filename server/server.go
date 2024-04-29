@@ -19,13 +19,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Server constants
-const (
-	CONTENT_TYPE     = "Content-Type"
-	X_REQUESTED_WITH = "X-Requested-With"
-	AUTHORIZATION    = "Authorization"
-)
-
 type ServerConfig struct {
 	Timeout int
 	Addr    string

@@ -19,7 +19,12 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 }
 
 func (p *UserRepository) FindAll(ctx context.Context) ([]*models.User, error) {
-	return nil, errors.New("not implemented")
+	var users []*models.User
+	err := p.db.WithContext(ctx).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func (p *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {

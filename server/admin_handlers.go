@@ -3,6 +3,7 @@ package server
 import (
 	"auth-server/models"
 	"auth-server/repository"
+	"auth-server/services"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,52 +13,51 @@ import (
 	"github.com/google/uuid"
 )
 
+// HandleUser handles user creation and retrieval. When called via POST,
+// it creates a new user, expecting it as a SignupRequest.
+// When called via GET, it retrieves all users.
 func (s *Server) HandleUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	var signupRequest models.SignupRequest
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&signupRequest)
-	if err != nil {
-		s.HandleError(w, http.StatusBadRequest, ADMIN_REGISTER_ROUTE, err)
-		return
-	}
-	user := &models.User{
-		BaseUUIDEntity: models.BaseUUIDEntity{
-			ID: uuid.New(),
-		},
-		Username:              signupRequest.Username,
-		Email:                 signupRequest.Email,
-		Password:              signupRequest.Password,
-		Enabled:               true,
-		AccountNonLocked:      true,
-		AccountNonExpired:     true,
-		CredentialsNonExpired: true,
-	}
 	repo := s.userRepository.(*repository.UserRepository)
-	_user, _ := repo.FindByEmail(context.Background(), user.Email)
-	if _user != nil {
-		s.HandleError(w, http.StatusConflict, ADMIN_REGISTER_ROUTE, errors.New("user already exists"))
-		return
+	service := services.NewUserService(repo)
+	var response []byte
+	switch r.Method {
+	case http.MethodGet:
+		result, err := service.GetAll()
+		if err != nil {
+			s.HandleError(w, http.StatusInternalServerError, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
+		response, err = json.Marshal(result)
+		if err != nil {
+			s.HandleError(w, http.StatusInternalServerError, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
+	case http.MethodPost:
+		var signupRequest models.SignupRequest
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&signupRequest)
+		if err != nil {
+			s.HandleError(w, http.StatusBadRequest, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
+		user := models.NewUser(&signupRequest)
+		result, err := service.CreateUser(user)
+		if err != nil {
+			s.HandleError(w, http.StatusConflict, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
+		response, err = json.Marshal(result)
+		if err != nil {
+			s.HandleError(w, http.StatusInternalServerError, ADMIN_REGISTER_ROUTE, err)
+			return
+		}
 	}
-	_user, _ = repo.FindByUsername(context.Background(), user.Username)
-	if _user != nil {
-		s.HandleError(w, http.StatusConflict, ADMIN_REGISTER_ROUTE, errors.New("user already exists"))
-		return
-	}
-	result, err := repo.Save(context.Background(), user)
-	if err != nil {
-		s.HandleError(w, http.StatusConflict, ADMIN_REGISTER_ROUTE, err)
-		return
-	}
-	response, err := json.Marshal(result)
-	if err != nil {
-		s.HandleError(w, http.StatusInternalServerError, ADMIN_REGISTER_ROUTE, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.Header().Set(CONTENT_TYPE, APPLICATION_JSON)
+	status := s.getStatusCode(r.Method)
+	w.WriteHeader(status)
 	w.Write(response)
-	s.logger.Info(http.StatusCreated, ADMIN_REGISTER_ROUTE, start)
+	s.logger.Info(status, ADMIN_REGISTER_ROUTE, start)
 }
 
 func (s *Server) HandleRole(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,16 @@ type SignupRequest struct {
 	Password string `json:"password"`
 }
 
+type UserDto struct {
+	ID       string     `json:"id"`
+	Username string     `json:"username"`
+	Email    string     `json:"email"`
+	Created  string     `json:"created_at"`
+	Updated  string     `json:"updated_at"`
+	Enabled  bool       `json:"enabled"`
+	Roles    []*RoleDto `json:"roles"`
+}
+
 type RoleRequest struct {
 	Name string `json:"name"`
 }
