@@ -26,10 +26,10 @@ func RoleToRoleDto(role *models.Role) *models.RoleDto {
 	}
 }
 
-func RolesToRoleDtos(roles []models.Role) []*models.RoleDto {
+func RolesToRoleDtos(roles []*models.Role) []*models.RoleDto {
 	roleDtos := make([]*models.RoleDto, 0)
 	for _, role := range roles {
-		roleDtos = append(roleDtos, RoleToRoleDto(&role))
+		roleDtos = append(roleDtos, RoleToRoleDto(role))
 	}
 	return roleDtos
 }
