@@ -4,13 +4,9 @@ import (
 	"auth-server/models"
 	"auth-server/repository"
 	"auth-server/services"
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // HandleUser handles user creation and retrieval. When called via POST,
@@ -97,10 +93,10 @@ func (s *Server) HandleRole(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 	s.logger.Info(status, ADMIN_ROLE_ROUTE, start)
 }
-func (s *Server)HandlePermission(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandlePermission(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	repo := s.permissionRepository.(*repository.PermissionRepository)
-	service := services.NewUserService(repo)
+	service := services.NewPermissionService(repo)
 	var response []byte
 	switch r.Method {
 	case http.MethodGet:
@@ -122,7 +118,7 @@ func (s *Server)HandlePermission(w http.ResponseWriter, r *http.Request) {
 			s.HandleError(w, http.StatusBadRequest, ADMIN_PERMISSION_ROUTE, err)
 			return
 		}
-		
+
 	}
 	w.Header().Set(CONTENT_TYPE, APPLICATION_JSON)
 	status := s.getStatusCode(r.Method)
@@ -156,7 +152,7 @@ func (s *Server) HandleClient(w http.ResponseWriter, r *http.Request) {
 			s.HandleError(w, http.StatusBadRequest, ADMIN_CLIENT_ROUTE, err)
 			return
 		}
-		
+
 	}
 	w.Header().Set(CONTENT_TYPE, APPLICATION_JSON)
 	status := s.getStatusCode(r.Method)

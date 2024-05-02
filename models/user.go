@@ -6,14 +6,14 @@ import (
 
 type User struct {
 	BaseUUIDEntity
-	Email                 string `json:"email" gorm:"unique"`
-	Username              string `json:"username" gorm:"unique"`
-	Password              string `json:"password"`
-	Enabled               bool   `json:"enabled"`
-	AccountNonLocked      bool   `json:"account_non_locked"`
-	AccountNonExpired     bool   `json:"account_non_expired"`
-	CredentialsNonExpired bool   `json:"credentials_non_expired"`
-	Roles                 []Role `json:"roles" gorm:"many2many:user_roles;"`
+	Email                 string  `json:"email" gorm:"unique"`
+	Username              string  `json:"username" gorm:"unique"`
+	Password              string  `json:"password"`
+	Enabled               bool    `json:"enabled"`
+	AccountNonLocked      bool    `json:"account_non_locked"`
+	AccountNonExpired     bool    `json:"account_non_expired"`
+	CredentialsNonExpired bool    `json:"credentials_non_expired"`
+	Roles                 []*Role `json:"roles" gorm:"many2many:user_roles;"`
 }
 
 // NewUser creates a new user from a SignupRequest.

@@ -25,6 +25,11 @@ type RoleDto struct {
 	Permissions []string `json:"permissions"`
 }
 
+type PermissionDto struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+}
+
 type TokenRequest struct {
 	GrantType string `json:"grant_type"`
 	ClientId  string `json:"client_id"`
