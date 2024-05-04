@@ -1,9 +1,10 @@
 package models
 
-import "gorm.io/gorm"
+import "github.com/google/uuid"
 
 type Role struct {
-	gorm.Model
-	Name        string        `json:"name" gorm:"unique"`
-	Permissions []*Permission `json:"permissions" gorm:"many2many:role_permissions;"`
+	BaseUUIDEntity
+	Name          string `json:"name"`
+	ApplicationID uuid.UUID
+	Application   *Application `json:"application"`
 }

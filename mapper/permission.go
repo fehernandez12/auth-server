@@ -14,5 +14,6 @@ func PermissionToPermissionDto(permission *models.Permission) *models.Permission
 	return &models.PermissionDto{
 		ID:   permission.ID,
 		Name: permission.Name,
+		Role: RoleToRoleDto(permission.Role),
 	}
 }

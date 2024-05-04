@@ -66,3 +66,39 @@ func (s *UserService) GetByUsername(username string) (*models.User, error) {
 func (s *UserService) GetByEmail(email string) (*models.User, error) {
 	return s.repo.FindByEmail(context.Background(), email)
 }
+
+func (s *UserService) GetUserRoles(user *models.User) ([]*models.RoleDto, error) {
+	roles, err := s.repo.GetUserRoles(context.Background(), user)
+	if err != nil {
+		return nil, err
+	}
+	return mapper.RolesToRoleDtos(roles), nil
+}
+
+func (s *UserService) AssignRolesToUser(user *models.User, roles []*models.Role) (*models.UserDto, error) {
+	err := s.repo.AssignRolesToUser(context.Background(), user, roles)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err = s.repo.FindById(context.Background(), user.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return mapper.UserToUserDto(user), nil
+}
+
+func (s *UserService) AddRolesToUser(user *models.User, roles []*models.Role) (*models.UserDto, error) {
+	err := s.repo.AddRolesToUser(context.Background(), user, roles)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err = s.repo.FindById(context.Background(), user.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return mapper.UserToUserDto(user), nil
+}

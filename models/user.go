@@ -31,14 +31,3 @@ func NewUser(dto *SignupRequest) *User {
 		CredentialsNonExpired: true,
 	}
 }
-
-func (u *User) Authorities() []string {
-	var authorities []string
-	for _, role := range u.Roles {
-		authorities = append(authorities, role.Name)
-		for _, permission := range role.Permissions {
-			authorities = append(authorities, permission.Name)
-		}
-	}
-	return authorities
-}
